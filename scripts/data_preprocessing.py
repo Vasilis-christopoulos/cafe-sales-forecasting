@@ -1,18 +1,7 @@
 import pandas as pd
 
-
-def remove_dollar_sign_and_convert(x):
-    """
-    Removes dollar sign and converts to float.
-    Parameters:
-        x (str): Dollar amount
-    Returns:
-        float: Dollar amount as float
-    """
-    if isinstance(x, str):
-        return float(x.replace('$', '').replace(',', '').strip())
-    return x
-
+#CSV files
+#------------------------------------------------------------------------------
 def item_sales_preprocess(df):
     """
     Preprocesses item sales data by cleaning columns, filtering categories, handling missing values, and setting the index.
@@ -22,7 +11,6 @@ def item_sales_preprocess(df):
         pd.DataFrame: Cleaned DataFrame.
     """
     # Remove dollar sign and convert to float
-    df['Gross Sales'] = df['Gross Sales'].apply(remove_dollar_sign_and_convert)
     df['Net Sales'] = df['Net Sales'].apply(remove_dollar_sign_and_convert)
     # Remove rows with 'Total' in 'Category Name' column
     df = df[~df['Category Name'].str.contains('Total', case=False, na=False)]
@@ -32,10 +20,9 @@ def item_sales_preprocess(df):
     df = df.dropna().reset_index(drop=True)
     # Convert Sold column to integer
     df['Sold'] = df['Sold'].astype(int)
-    # Set the 'date' column as the index
-    df = df.set_index('date')
 
     return df
+
 
 def sales_preprocess(df):
     """
@@ -56,15 +43,14 @@ def sales_preprocess(df):
     
     # Create sales DataFrame
     sales_data = pd.DataFrame({
-        'Gross Sales': df.iloc[0, 1:-1].values,  # Row 1 is Gross Sales
         'Net Sales': df.iloc[3, 1:-1].values     # Row 4 is Net Sales
     }, index=dates)
-
-    sales_data['Gross Sales'] = sales_data['Gross Sales'].apply(remove_dollar_sign_and_convert)
     sales_data['Net Sales'] = sales_data['Net Sales'].apply(remove_dollar_sign_and_convert)
 
     return sales_data
 
+# Local Holidays
+#------------------------------------------------------------------------------
 from datetime import datetime
 def local_holidays_preprocess(df):
     """
@@ -83,3 +69,36 @@ def local_holidays_preprocess(df):
     df = df.loc['2023-10-01':'2024-10-01']
 
     return df
+
+# Weather
+#------------------------------------------------------------------------------
+def weather_preprocess(weather):
+    weather_clean = weather.drop(columns=['tsun', 'wpgt'], axis=1)
+    weather_clean = weather_clean.fillna(0)
+    return weather_clean
+
+#Utility functions
+#------------------------------------------------------------------------------
+def daily_resample(data):
+    """
+    Resamples daily data to fill missing dates and forward fill values.
+    Parameters:
+        data (pd.DataFrame): Input DataFrame.
+    Returns:
+        pd.DataFrame: Resampled DataFrame.
+    """
+    data_daily = data.resample('D').ffill()
+    data_daily = data_daily.reindex(pd.date_range(start='2023-10-01', end='2024-10-31', freq='D')).ffill()
+    return data_daily
+
+def remove_dollar_sign_and_convert(x):
+    """
+    Removes dollar sign and converts to float.
+    Parameters:
+        x (str): Dollar amount
+    Returns:
+        float: Dollar amount as float
+    """
+    if isinstance(x, str):
+        return float(x.replace('$', '').replace(',', '').strip())
+    return x

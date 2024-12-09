@@ -20,25 +20,25 @@ def item_sales_csv_fetch(file_path) -> pd.DataFrame:
     Returns:
         pandas.DataFrame: Preprocessed sales data with:
         - Extracted date (date)
-        - Selected columns (Category Name, Name, Gross Sales, Net Sales, Sold)
+        - Selected columns (Name, Gross Sales, Net Sales, Sold)
         - Preprocessed values (thousands separated, blank values handled)
     """
     try:
-        # Extract and verify date range
+        # Extract date range
         with open(file_path, 'r', encoding='utf-8') as file:
             next(file)  
             date_range = next(file).strip().strip('"')
         
-        # Parse dates with error handling
+        # Parse start and end dates
         date = pd.to_datetime(date_range.split(' - ')[0].split(' 12:00')[0])
-        print(f"Parsed dates: {date}")  # Debug
+        end_date = pd.to_datetime(date_range.split(' - ')[1].split(' 11:59')[0])
 
         # Find header with verification
         with open(file_path, 'r', encoding='utf-8') as file:
             header_idx = next((idx for idx, line in enumerate(file) 
                               if 'Category Name' in line), 0)
         
-        cols = ['Category Name', 'Name', 'Gross Sales', 'Net Sales', 'Sold']
+        cols = ['Category Name', 'Name', 'Net Sales', 'Sold']
         
         # Read CSV with explicit dtype
         df = pd.read_csv(file_path,
@@ -50,7 +50,8 @@ def item_sales_csv_fetch(file_path) -> pd.DataFrame:
                          usecols=cols)
         
         # Add dates
-        df['date'] = date
+        df['start_date'] = date
+        df['end_date'] = end_date
 
         # Initial preprocessing
         return dp.item_sales_preprocess(df)
@@ -137,8 +138,8 @@ def fetch_the_weather(start_date, end_date, lat=45.5089, lon=-73.5617, alt=10) -
     """
     Fetches the weather data for Montreal from the Meteostat API.
     Parameters:
-        start_date (str): Start date of the weather data
-        end_date (str): End date of the weather data
+        start_date (datetime): Start date of the weather data
+        end_date (datetime): End date of the weather data
         lat (float): Latitude of the location
         lon (float): Longitude of the location
         alt (float): Altitude of the location
@@ -159,6 +160,8 @@ def fetch_the_weather(start_date, end_date, lat=45.5089, lon=-73.5617, alt=10) -
 
         if data.empty:
             print("Warning: No weather data found for specified period")
+        else:
+            data.index = pd.to_datetime(data.index)
             
         return data
 
@@ -195,7 +198,7 @@ def macroeconomic_fetch_fred():
         print(f"Error fetching macroeconomic data: {str(e)}")
         return None, None, None, None
 
-    return gdp, cpi, unemployment, bond_yields
+    return gdp.to_frame(name = 'GDP'), cpi.to_frame(name = 'CPI'), unemployment.to_frame(name = 'Unemployment Rate'), bond_yields.to_frame(name = 'Bond Yields')
 
 import requests
 from datetime import datetime
