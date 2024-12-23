@@ -20,6 +20,10 @@ def item_sales_preprocess(df):
     df = df.dropna().reset_index(drop=True)
     # Convert Sold column to integer
     df['Sold'] = df['Sold'].astype(int)
+    # Convert date to datetime
+    df['date'] = pd.to_datetime(df['date'])
+    # Sort the DataFrame by date
+    df.sort_values(by='date', inplace=True)
 
     return df
 
@@ -45,6 +49,7 @@ def sales_preprocess(df):
     sales_data = pd.DataFrame({
         'Net Sales': df.iloc[3, 1:-1].values     # Row 4 is Net Sales
     }, index=dates)
+    sales_data.index = pd.to_datetime(sales_data.index)
     sales_data['Net Sales'] = sales_data['Net Sales'].apply(remove_dollar_sign_and_convert)
 
     return sales_data
@@ -52,7 +57,7 @@ def sales_preprocess(df):
 # Local Holidays
 #------------------------------------------------------------------------------
 from datetime import datetime
-def local_holidays_preprocess(df):
+def local_holidays_preprocess(df, start_date='2023-10-01', end_date='2024-10-01'):
     """
     Preprocesses local holidays data by parsing dates properly and setting the index.
     Parameters:
@@ -66,7 +71,7 @@ def local_holidays_preprocess(df):
     df.set_index('Date', inplace=True)
 
     # Filter records by date range
-    df = df.loc['2023-10-01':'2024-10-01']
+    df = df[start_date:end_date]
 
     return df
 
@@ -79,7 +84,7 @@ def weather_preprocess(weather):
 
 #Utility functions
 #------------------------------------------------------------------------------
-def daily_resample(data):
+def daily_resample(data, start_date='2023-10-01', end_date='2024-10-31'):
     """
     Resamples daily data to fill missing dates and forward fill values.
     Parameters:
@@ -88,7 +93,7 @@ def daily_resample(data):
         pd.DataFrame: Resampled DataFrame.
     """
     data_daily = data.resample('D').ffill()
-    data_daily = data_daily.reindex(pd.date_range(start='2023-10-01', end='2024-10-31', freq='D')).ffill()
+    data_daily = data_daily.reindex(pd.date_range(start=start_date, end=end_date, freq='D')).ffill()
     return data_daily
 
 def remove_dollar_sign_and_convert(x):

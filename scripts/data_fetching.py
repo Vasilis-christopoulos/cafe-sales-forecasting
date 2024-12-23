@@ -14,25 +14,24 @@ importlib.reload(dp)
 
 def item_sales_csv_fetch(file_path) -> pd.DataFrame:
     """
-    Reads item sales data from CSV file, extracts date range, and preprocesses it.
+    Reads daily item sales data from CSV file.
     Parameters:
         file_path (str): Path to the CSV file
     Returns:
         pandas.DataFrame: Preprocessed sales data with:
-        - Extracted date (date)
+        - Single date column
         - Selected columns (Name, Gross Sales, Net Sales, Sold)
         - Preprocessed values (thousands separated, blank values handled)
     """
     try:
-        # Extract date range
+        # Extract date
         with open(file_path, 'r', encoding='utf-8') as file:
             next(file)  
-            date_range = next(file).strip().strip('"')
+            date_str = next(file).strip().strip('"')
+            
+        # Parse single date
+        date = pd.to_datetime(date_str.split(' - ')[0].split(' 12:00')[0])
         
-        # Parse start and end dates
-        date = pd.to_datetime(date_range.split(' - ')[0].split(' 12:00')[0])
-        end_date = pd.to_datetime(date_range.split(' - ')[1].split(' 11:59')[0])
-
         # Find header with verification
         with open(file_path, 'r', encoding='utf-8') as file:
             header_idx = next((idx for idx, line in enumerate(file) 
@@ -49,9 +48,8 @@ def item_sales_csv_fetch(file_path) -> pd.DataFrame:
                          skip_blank_lines=True,
                          usecols=cols)
         
-        # Add dates
-        df['start_date'] = date
-        df['end_date'] = end_date
+        # Add single date column
+        df['date'] = pd.to_datetime(date)
 
         # Initial preprocessing
         return dp.item_sales_preprocess(df)
@@ -111,7 +109,7 @@ def merge_all_sales(directory_path) -> pd.DataFrame:
     
     for file in all_files:
         try:
-            if directory_path == 'data/Item Sales':
+            if directory_path.startswith('data/Item Sales'):
                 df = item_sales_csv_fetch(file)
             elif directory_path == 'data/Sales':
                 df = sales_csv_fetch(file)
@@ -147,6 +145,12 @@ def fetch_the_weather(start_date, end_date, lat=45.5089, lon=-73.5617, alt=10) -
         pandas.DataFrame: Weather data for Montreal or empty DataFrame on error
     """
     try:
+        # Ensure the dates are in datetime format
+        if not isinstance(start_date, datetime):
+            start_date = pd.to_datetime(start_date)
+        if not isinstance(end_date, datetime):
+            end_date = pd.to_datetime(end_date)
+            
         # Create point for Montreal
         montreal = Point(lat, lon, alt)
 
@@ -173,7 +177,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 from fredapi import Fred
-def macroeconomic_fetch_fred():
+def macroeconomic_fetch_fred(start_date = '2023-10-01', end_date = '2024-11-01') -> pd.DataFrame:
     """
     Fetches macroeconomic data from the FRED API.
     Returns:
@@ -190,10 +194,10 @@ def macroeconomic_fetch_fred():
         fred = Fred(api_key=api_key)
 
         # Fetch the macroeconomic data
-        gdp = fred.get_series('NGDPRSAXDCCAQ',observation_start='2023-10-01', observation_end='2024-11-01')
-        cpi = fred.get_series('CPALTT01CAM659N', observation_start='2023-10-01', observation_end='2024-11-01')
-        unemployment = fred.get_series('LRUNTTTTCAM156S', observation_start='2023-10-01', observation_end='2024-11-01')
-        bond_yields = fred.get_series('IRLTLT01CAM156N', observation_start='2023-10-01', observation_end='2024-11-01')
+        gdp = fred.get_series('NGDPRSAXDCCAQ',observation_start = start_date, observation_end=end_date)
+        cpi = fred.get_series('CPALTT01CAM659N', observation_start = start_date, observation_end=end_date)
+        unemployment = fred.get_series('LRUNTTTTCAM156S', observation_start=start_date, observation_end=end_date)
+        bond_yields = fred.get_series('IRLTLT01CAM156N', observation_start=start_date, observation_end=end_date)
     except Exception as e:
         print(f"Error fetching macroeconomic data: {str(e)}")
         return None, None, None, None
@@ -234,7 +238,7 @@ def make_request(year) -> pd.DataFrame:
     return pd.DataFrame(holiday_data)
     
 
-def local_holidays_fetch() -> pd.DataFrame:
+def local_holidays_fetch(start_date = '2023-10-01', end_date = '2024-10-31') -> pd.DataFrame:
     """
     Fetches Quebec local holidays for 2023-2024.
     Returns DataFrame with dates and holiday names.
