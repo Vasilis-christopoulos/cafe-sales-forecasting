@@ -4,14 +4,15 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 import lightgbm as lgb
-from sklearn.svm import SVR
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
-from sklearn.ensemble import RandomForestRegressor
 
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit, train_test_split
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.metrics import make_scorer, mean_squared_error, mean_absolute_error, r2_score
 from typing import List, Dict, Tuple
+from sklearn.linear_model import Ridge
+from sklearn.compose import TransformedTargetRegressor
+from sklearn.preprocessing import FunctionTransformer
 
 def analyze_category_feature_importance(
     data: pd.DataFrame, 
@@ -102,145 +103,281 @@ def analyze_category_feature_importance(
         print(f"Error during analysis: {str(e)}")
         return None, None
     
+# Custom metrics
+    
 def calculate_mape(y_test, y_pred):
     """Calculate MAPE excluding zero values"""
+
     mask = y_test != 0
     return np.mean(np.abs((y_test[mask] - y_pred[mask]) / y_test[mask])) * 100
-    
 
-def train_category_models(
-    df, 
-    model_type, 
-    target_cols, 
-    date_split, 
-    xgb_params=None,
-    lgb_params=None,
-    random_state=42
-):
+def accuracy_range(range, y_test, y_pred):
     """
-    Train models with customizable parameters
-    
-    Args:
-        df: Input dataframe with datetime index
-        model_type: 'xgboost', 'lightgbm', or 'randomforest'
-        target_cols: List of sales columns to predict
-        date_split: Datetime string for train/test split
-        xgb_params: Dict of XGBoost parameters to override defaults
-        lgb_params: Dict of LightGBM parameters to override defaults
-        rf_params: Dict of RandomForest parameters to override defaults
-        random_state: Random seed
+    Calculate accuracy within a certain range
     """
-    
-    # Default parameter grids
-    default_xgb_params = {
-        'model__max_depth': [3, 7],
-        'model__learning_rate': [0.01, 0.1],
-        'model__n_estimators': [100, 200],
-        'model__min_child_weight': [1, 5],
-        'model__subsample': [0.8, 1.0],
-        'model__colsample_bytree': [0.8, 1.0],
-        'model__gamma': [0, 0.1],
-        'model__nthread': [-1]
-    }
-    
-    default_lgb_params = {
-    'model__num_leaves': [3, 7],            
-    'model__learning_rate': [0.01, 0.1],    
-    'model__n_estimators': [100, 200],      
-    'model__min_child_samples': [3, 5],     
-    'model__subsample': [0.8, 1.0],          
-    'model__colsample_bytree': [0.8, 1.0],  
-    'model__reg_alpha': [0.01, 0.1],         
-    'model__reg_lambda': [0.01, 0.1],         
-    'model__max_depth': [3, 7],
-    'model__nthread': [-1]  
-    }
 
+    within = (abs(y_test - y_pred) <= range)
+    accuracy = within.sum() / len(y_test) * 100
     
-    # Update with custom parameters if provided
-    if xgb_params:
-        default_xgb_params.update(xgb_params)
-    if lgb_params:
-        default_lgb_params.update(lgb_params)
+    return accuracy
+
+def log_transform(x):
+    return np.log1p(x)
+
+def inverse_log_transform(x):
+    return np.expm1(x)
+
+def xgb_train_log(df, categories, n_splits, xgb_params, random_state=42, date_split='2024-11-16'):
+    """
+    Similar to ridge_train, but uses a TransformedTargetRegressor with log1p/expm1
+    so that the target is log-transformed during training.
+    """
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import Ridge
+    from sklearn.preprocessing import StandardScaler, FunctionTransformer
+    from sklearn.compose import TransformedTargetRegressor
+    from sklearn.pipeline import Pipeline
+    from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+    from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
     
-    tscv = TimeSeriesSplit(n_splits=5)
     results = {}
-
-
+    residuals = {}
+    best_models = {}
     
-    for target_col in target_cols:
-        print(f"\nTraining models for category sales: {target_col}")
-        
-        X = df.drop(target_col, axis=1)
-        y = df[target_col]
-        
-        X_train = X[X.index < date_split]
-        X_test = X[X.index >= date_split]
-        y_train = y[y.index < date_split]
-        y_test = y[y.index >= date_split]
-        
-        print(f"Train period: {X_train.index.min()} to {X_train.index.max()}")
-        print(f"Test period: {X_test.index.min()} to {X_test.index.max()}")
-        
-        if model_type.lower() == 'xgboost':
-            pipeline = Pipeline([
-                ('scaler', StandardScaler()),
-                ('model', xgb.XGBRegressor(random_state=random_state))
-            ])
-            param_grid = default_xgb_params
-        elif model_type.lower() == 'lightgbm':
-            pipeline = Pipeline([
-                ('scaler', StandardScaler()),
-                ('model', lgb.LGBMRegressor(random_state=random_state, verbose=-1))
-            ])
-            param_grid = default_lgb_params
-        else:
-            raise ValueError("model_type must be 'xgboost', 'lightgbm', or 'randomforest'")
+    transformer = FunctionTransformer(func=log_transform, inverse_func=inverse_log_transform)
+
+    for category in categories:
+        # Prepare data
+        X = df.drop(category, axis=1)
+        y = df[category]
+
+        X_train = X[X.index <= date_split]
+        y_train = y[y.index <= date_split]
+        X_test = X[X.index > date_split]
+        y_test = y[y.index > date_split]
+
+        # Time series CV
+        tcsv = TimeSeriesSplit(n_splits=n_splits, test_size=30, gap=0)
+
+        scaler = StandardScaler()
+        pipeline = Pipeline([
+            ('scaler', scaler),
+            ('model', TransformedTargetRegressor(
+                regressor=xgb.XGBRegressor(random_state=random_state),
+                transformer=transformer
+            ))
+        ])
+
         
         grid_search = GridSearchCV(
             estimator=pipeline,
-            param_grid=param_grid,
+            param_grid=xgb_params,
             scoring='neg_root_mean_squared_error',
-            cv=tscv,
+            cv=tcsv,
+            refit=True,
             n_jobs=-1,
-            verbose=1
+            verbose=False
         )
         
         grid_search.fit(X_train, y_train)
-        
-        y_pred = grid_search.predict(X_test)
-        mse = mean_squared_error(y_test, y_pred)
-        mae = mean_absolute_error(y_test, y_pred)
-        r2 = r2_score(y_test, y_pred)
-        rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-        mape = calculate_mape(y_test, y_pred)
-        
-        results[target_col] = {
-            'best_params': grid_search.best_params_,
-            'best_score': -grid_search.best_score_,
-            'test_rmse': rmse,
-            'test_mape': mape,
-            'test_r2': r2,
-            'test_mae': mae,
-            'test_mse': mse
+
+        y_pred_train = grid_search.predict(X_train)
+        y_pred_test = grid_search.predict(X_test)
+
+        # Evaluate metrics on original scale
+        train_metrics = {
+            'mse': mean_squared_error(y_train, y_pred_train),
+            'rmse': np.sqrt(mean_squared_error(y_train, y_pred_train)),
+            'mae': mean_absolute_error(y_train, y_pred_train),
+            'r2': r2_score(y_train, y_pred_train),
+            'mape': calculate_mape(y_train, y_pred_train),
+            'accuracy_20': accuracy_range(20, y_train, y_pred_train),
+            'accuracy_50': accuracy_range(50, y_train, y_pred_train),
+            'accuracy_100': accuracy_range(100, y_train, y_pred_train)
         }
-        
-        print(f"Best RMSE for {target_col}: {rmse:.4f}")
-        print(f"Best MAPE for {target_col}: {mape:.4f}")
-        print(f"Best R2 for {target_col}: {r2:.4f}")
-        print(f"Best MAE for {target_col}: {mae:.4f}")
-        print(f"Best MSE for {target_col}: {mse:.4f}")
-    
+
+        test_metrics = {
+            'mse': mean_squared_error(y_test, y_pred_test),
+            'rmse': np.sqrt(mean_squared_error(y_test, y_pred_test)),
+            'mae': mean_absolute_error(y_test, y_pred_test),
+            'r2': r2_score(y_test, y_pred_test),
+            'mape': calculate_mape(y_test, y_pred_test),
+            'accuracy_20': accuracy_range(20, y_test, y_pred_test),
+            'accuracy_50': accuracy_range(50, y_test, y_pred_test),
+            'accuracy_100': accuracy_range(100, y_test, y_pred_test)
+        }
+
+        results[category] = {
+            'best_params': grid_search.best_params_,
+            'best_score': -grid_search.best_score_, 
+            'train_metrics': train_metrics,
+            'test_metrics': test_metrics
+        }
+
+        # Residuals in original scale
+        residuals[category] = {
+            'train_residuals': y_train - y_pred_train,
+            'test_residuals': y_test - y_pred_test
+        }
+
+        best_models[category] = grid_search.best_estimator_
+
+        print(f"\nMetrics for {category}:")
+        print("Training Metrics:")
+        print(f"RMSE: {train_metrics['rmse']:.4f}")
+        print(f"MAPE: {train_metrics['mape']:.4f}")
+        print(f"R2: {train_metrics['r2']:.4f}")
+        print("\nTest Metrics:")
+        print(f"RMSE: {test_metrics['rmse']:.4f}")
+        print(f"MAPE: {test_metrics['mape']:.4f}")
+        print(f"R2: {test_metrics['r2']:.4f}")
+
+    # Build summary DataFrame
     summary_df = pd.DataFrame({
         'Category': list(results.keys()),
-        'Test RMSE': [results[cat]['test_rmse'] for cat in results.keys()],
-        'Test MAPE': [results[cat]['test_mape'] for cat in results.keys()],
-        'Test R2': [results[cat]['test_r2'] for cat in results.keys()],
-        'Test MAE': [results[cat]['test_mae'] for cat in results.keys()],
-        'Test MSE': [results[cat]['test_mse'] for cat in results.keys()],
-        'CV RMSE': [results[cat]['best_score'] for cat in results.keys()]
+        'Train RMSE': [results[cat]['train_metrics']['rmse'] for cat in results.keys()],
+        'Train MAPE': [results[cat]['train_metrics']['mape'] for cat in results.keys()],
+        'Train R2': [results[cat]['train_metrics']['r2'] for cat in results.keys()],
+        'Train Accuracy 20': [results[cat]['train_metrics']['accuracy_20'] for cat in results.keys()],
+        'Train Accuracy 50': [results[cat]['train_metrics']['accuracy_50'] for cat in results.keys()],
+        'Train Accuracy 100': [results[cat]['train_metrics']['accuracy_100'] for cat in results.keys()],
+        'Test RMSE': [results[cat]['test_metrics']['rmse'] for cat in results.keys()],
+        'Test MAPE': [results[cat]['test_metrics']['mape'] for cat in results.keys()],
+        'Test R2': [results[cat]['test_metrics']['r2'] for cat in results.keys()],
+        'CV RMSE': [results[cat]['best_score'] for cat in results.keys()],
+        'Test Accuracy 20': [results[cat]['test_metrics']['accuracy_20'] for cat in results.keys()],
+        'Test Accuracy 50': [results[cat]['test_metrics']['accuracy_50'] for cat in results.keys()],
+        'Test Accuracy 100': [results[cat]['test_metrics']['accuracy_100'] for cat in results.keys()]
     })
+
+    return results, summary_df, residuals, best_models
+
+def ridge_train_log(df, categories, n_splits, ridge_params, random_state=42, date_split='2024-11-16'):
+    """
+    Similar to ridge_train, but uses a TransformedTargetRegressor with log1p/expm1
+    so that the target is log-transformed during training.
+    """
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import Ridge
+    from sklearn.preprocessing import StandardScaler, FunctionTransformer
+    from sklearn.compose import TransformedTargetRegressor
+    from sklearn.pipeline import Pipeline
+    from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+    from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+    import warnings
+
+    warnings.filterwarnings('ignore')
     
-    return results, summary_df
+    results = {}
+    residuals = {}
+    best_models  = {}
 
+    transformer = FunctionTransformer(func=log_transform, inverse_func=inverse_log_transform)
 
+    for category in categories:
+        # Prepare data
+        X = df.drop(category, axis=1)
+        y = df[category]
+
+        X_train = X[X.index <= date_split]
+        y_train = y[y.index <= date_split]
+        X_test = X[X.index > date_split]
+        y_test = y[y.index > date_split]
+
+        # Time series CV
+        tcsv = TimeSeriesSplit(n_splits=n_splits, test_size=30, gap=0)
+
+        scaler = StandardScaler()
+        pipeline = Pipeline([
+            ('scaler', scaler),
+            ('model', TransformedTargetRegressor(
+                regressor=Ridge(random_state=random_state),
+                transformer=transformer
+            ))
+        ])
+
+        
+        grid_search = GridSearchCV(
+            estimator=pipeline,
+            param_grid=ridge_params,
+            scoring='neg_root_mean_squared_error',
+            cv=tcsv,
+            refit=True,
+            n_jobs=-1,
+            verbose=False
+        )
+        
+        grid_search.fit(X_train, y_train)
+
+        y_pred_train = grid_search.predict(X_train)
+        y_pred_test = grid_search.predict(X_test)
+
+        # Evaluate metrics on original scale
+        train_metrics = {
+            'mse': mean_squared_error(y_train, y_pred_train),
+            'rmse': np.sqrt(mean_squared_error(y_train, y_pred_train)),
+            'mae': mean_absolute_error(y_train, y_pred_train),
+            'r2': r2_score(y_train, y_pred_train),
+            'mape': calculate_mape(y_train, y_pred_train),
+            'accuracy_20': accuracy_range(20, y_train, y_pred_train),
+            'accuracy_50': accuracy_range(50, y_train, y_pred_train),
+            'accuracy_100': accuracy_range(100, y_train, y_pred_train)
+        }
+
+        test_metrics = {
+            'mse': mean_squared_error(y_test, y_pred_test),
+            'rmse': np.sqrt(mean_squared_error(y_test, y_pred_test)),
+            'mae': mean_absolute_error(y_test, y_pred_test),
+            'r2': r2_score(y_test, y_pred_test),
+            'mape': calculate_mape(y_test, y_pred_test),
+            'accuracy_20': accuracy_range(20, y_test, y_pred_test),
+            'accuracy_50': accuracy_range(50, y_test, y_pred_test),
+            'accuracy_100': accuracy_range(100, y_test, y_pred_test)
+        }
+
+        results[category] = {
+            'best_params': grid_search.best_params_,
+            'best_score': -grid_search.best_score_, 
+            'train_metrics': train_metrics,
+            'test_metrics': test_metrics
+        }
+
+        # Residuals in original scale
+        residuals[category] = {
+            'train_residuals': y_train - y_pred_train,
+            'test_residuals': y_test - y_pred_test
+        }
+        
+        best_models[category] = grid_search.best_estimator_
+
+        print(f"\nMetrics for {category}:")
+        print("Training Metrics:")
+        print(f"RMSE: {train_metrics['rmse']:.4f}")
+        print(f"MAPE: {train_metrics['mape']:.4f}")
+        print(f"R2: {train_metrics['r2']:.4f}")
+        print("\nTest Metrics:")
+        print(f"RMSE: {test_metrics['rmse']:.4f}")
+        print(f"MAPE: {test_metrics['mape']:.4f}")
+        print(f"R2: {test_metrics['r2']:.4f}")
+
+    # Build summary DataFrame
+    summary_df = pd.DataFrame({
+        'Category': list(results.keys()),
+        'Train RMSE': [results[cat]['train_metrics']['rmse'] for cat in results.keys()],
+        'Train MAPE': [results[cat]['train_metrics']['mape'] for cat in results.keys()],
+        'Train R2': [results[cat]['train_metrics']['r2'] for cat in results.keys()],
+        'Train Accuracy 20': [results[cat]['train_metrics']['accuracy_20'] for cat in results.keys()],
+        'Train Accuracy 50': [results[cat]['train_metrics']['accuracy_50'] for cat in results.keys()],
+        'Train Accuracy 100': [results[cat]['train_metrics']['accuracy_100'] for cat in results.keys()],
+        'Test RMSE': [results[cat]['test_metrics']['rmse'] for cat in results.keys()],
+        'Test MAPE': [results[cat]['test_metrics']['mape'] for cat in results.keys()],
+        'Test R2': [results[cat]['test_metrics']['r2'] for cat in results.keys()],
+        'CV RMSE': [results[cat]['best_score'] for cat in results.keys()],
+        'Test Accuracy 20': [results[cat]['test_metrics']['accuracy_20'] for cat in results.keys()],
+        'Test Accuracy 50': [results[cat]['test_metrics']['accuracy_50'] for cat in results.keys()],
+        'Test Accuracy 100': [results[cat]['test_metrics']['accuracy_100'] for cat in results.keys()]
+    })
+
+    return results, summary_df, residuals, best_models

@@ -107,3 +107,18 @@ def remove_dollar_sign_and_convert(x):
     if isinstance(x, str):
         return float(x.replace('$', '').replace(',', '').strip())
     return x
+
+def remove_outliers(data, categories, threshold=3):
+    """
+    Removes outliers from the data for each category.
+    Parameters:
+        data (pd.DataFrame): Input data.
+        categories (list): List of target variables.
+        threshold (int): Z-score threshold.
+    Returns:
+        pd.DataFrame: Data without outliers.
+    """
+    for category in categories:
+        z_scores = (data[category] - data[category].mean()) / data[category].std()
+        data = data[abs(z_scores) < threshold]
+    return data

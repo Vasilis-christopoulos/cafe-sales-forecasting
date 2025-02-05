@@ -26,6 +26,8 @@ def plot_correlation_heatmap(df, figsize=(30, 12), cmap='viridis'):
     # Show the plot
     plt.show()
 
+    return corr_matrix
+
 
 def plot_monthly_sales_vs_macro(data: pd.DataFrame):
     """
@@ -44,7 +46,7 @@ def plot_monthly_sales_vs_macro(data: pd.DataFrame):
         monthly_data = data.resample('ME').mean()
         
         # Define categories and macro indicators
-        categories = ['Cold Coffee', 'Hot Coffee', 'Without Coffee', 'Food', 'Desserts', 'Merch']
+        categories = ['Coffee', 'Without Coffee', 'Food', 'Merch']
         macro_indicators = ['GDP', 'CPI', 'Unemployment Rate', 'Bond Yields']
         
         # Set seaborn style
@@ -165,4 +167,144 @@ def plot_lag_features(data, category_sales, features, title):
     ax.legend(title='Category')
 
     plt.tight_layout()
+    plt.show()
+
+def hist_residuals_comparison(residuals_ridge, residuals_xgb, categories):
+    """Plot train and test residuals comparison"""
+    
+    sns.set_style("whitegrid")
+    palette = sns.color_palette("husl", 4)  # 2 colors each for train/test
+    
+    fig, axes = plt.subplots(2, 3, figsize=(20, 10))
+    fig.suptitle('Train vs Test Residuals Distribution: Ridge vs XGBoost', 
+                 y=1.05, 
+                 fontsize=16, 
+                 fontweight='bold')
+    
+    for idx, category in enumerate(categories):
+        # Ridge plots (top row)
+        sns.histplot(data=residuals_ridge[category]['train_residuals'],
+                    bins=30,
+                    kde=True,
+                    color=palette[0],
+                    alpha=0.4,
+                    label='Train',
+                    ax=axes[0, idx])
+        sns.histplot(data=residuals_ridge[category]['test_residuals'],
+                    bins=30,
+                    kde=True,
+                    color=palette[1],
+                    alpha=0.4,
+                    label='Test',
+                    ax=axes[0, idx])
+        axes[0, idx].set_title(f'Ridge - {category}',
+                              fontsize=12,
+                              pad=10)
+        axes[0, idx].set_xlabel('Residuals')
+        axes[0, idx].set_ylabel('Count')
+        axes[0, idx].legend()
+        
+        # XGBoost plots (bottom row)
+        sns.histplot(data=residuals_xgb[category]['train_residuals'],
+                    bins=30,
+                    kde=True,
+                    color=palette[2],
+                    alpha=0.4,
+                    label='Train',
+                    ax=axes[1, idx])
+        sns.histplot(data=residuals_xgb[category]['test_residuals'],
+                    bins=30,
+                    kde=True,
+                    color=palette[3],
+                    alpha=0.4,
+                    label='Test',
+                    ax=axes[1, idx])
+        axes[1, idx].set_title(f'XGBoost - {category}',
+                              fontsize=12,
+                              pad=10)
+        axes[1, idx].set_xlabel('Residuals')
+        axes[1, idx].set_ylabel('Count')
+        axes[1, idx].legend()
+    
+    plt.tight_layout()
+    sns.despine()
+    plt.show()
+
+def hist_plot_categories(data_final, categories, figsize=(10, 8)):
+    # Create a figure and axes for the histograms
+    fig_hist, axes_hist = plt.subplots(2, 3, figsize=figsize)
+
+    # Plot histogram for each category
+    for ax_hist, category in zip(axes_hist.flatten(), categories):
+        sns.histplot(data_final[category], bins=30, kde=True, ax=ax_hist)
+        ax_hist.set_title(f'Histogram of {category} Sales')
+        ax_hist.set_xlabel('Sales')
+        ax_hist.set_ylabel('Frequency')
+
+    # Adjust layout
+    plt.tight_layout()
+    plt.show()
+
+import seaborn as sns
+import scipy.stats as stats
+
+def plot_qq_comparison(residuals_ridge, residuals_xgb, categories):
+    """Plot QQ plots comparison for train and test residuals"""
+    
+    sns.set_style("whitegrid")
+    palette = sns.color_palette("husl", 4)  # 4 colors for Ridge/XGB train/test
+    
+    fig, axes = plt.subplots(2, 3, figsize=(20, 10))
+    fig.suptitle('Train vs Test QQ Plots: Ridge vs XGBoost', 
+                 y=1.05, 
+                 fontsize=16, 
+                 fontweight='bold')
+    
+    for idx, category in enumerate(categories):
+        # Ridge plots (top row)
+        # Train residuals
+        stats.probplot(residuals_ridge[category]['train_residuals'], 
+                      dist="norm", 
+                      plot=axes[0, idx])
+        axes[0, idx].get_lines()[0].set_markerfacecolor(palette[0])
+        axes[0, idx].get_lines()[0].set_alpha(0.6)
+        axes[0, idx].get_lines()[0].set_label('Train')
+        
+        # Test residuals
+        stats.probplot(residuals_ridge[category]['test_residuals'], 
+                      dist="norm", 
+                      plot=axes[0, idx])
+        axes[0, idx].get_lines()[2].set_markerfacecolor(palette[1])
+        axes[0, idx].get_lines()[2].set_alpha(0.6)
+        axes[0, idx].get_lines()[2].set_label('Test')
+        
+        axes[0, idx].set_title(f'Ridge - {category}', 
+                              fontsize=12, 
+                              pad=10)
+        axes[0, idx].legend()
+        
+        # XGBoost plots (bottom row)
+        # Train residuals
+        stats.probplot(residuals_xgb[category]['train_residuals'], 
+                      dist="norm", 
+                      plot=axes[1, idx])
+        axes[1, idx].get_lines()[0].set_markerfacecolor(palette[2])
+        axes[1, idx].get_lines()[0].set_alpha(0.6)
+        axes[1, idx].get_lines()[0].set_label('Train')
+        
+        # Test residuals
+        stats.probplot(residuals_xgb[category]['test_residuals'], 
+                      dist="norm", 
+                      plot=axes[1, idx])
+        axes[1, idx].get_lines()[2].set_markerfacecolor(palette[3])
+        axes[1, idx].get_lines()[2].set_alpha(0.6)
+        axes[1, idx].get_lines()[2].set_label('Test')
+        
+        axes[1, idx].set_title(f'XGBoost - {category}', 
+                              fontsize=12, 
+                              pad=10)
+        axes[1, idx].legend()
+    
+    plt.tight_layout()
+    sns.despine()
     plt.show()

@@ -10,3 +10,4 @@ __pycache__/
 .vscode/
 *.log
 *.sqlite3
+*.pkl
