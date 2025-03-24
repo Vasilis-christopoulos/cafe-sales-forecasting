@@ -132,7 +132,7 @@ def merge_all_sales(directory_path) -> pd.DataFrame:
 # API data fetching
 # ------------------------------------------------------------------------------
 from meteostat import Point, Daily
-def fetch_the_weather(start_date, end_date, lat=45.5089, lon=-73.5617, alt=10) -> pd.DataFrame:
+def fetch_the_weather(start_date, end_date, lat=45.47, lon=-73.74) -> pd.DataFrame:
     """
     Fetches the weather data for Montreal from the Meteostat API.
     Parameters:
@@ -152,7 +152,7 @@ def fetch_the_weather(start_date, end_date, lat=45.5089, lon=-73.5617, alt=10) -
             end_date = pd.to_datetime(end_date)
             
         # Create point for Montreal
-        montreal = Point(lat, lon, alt)
+        montreal = Point(lat, lon)
 
         # Fetch the weather data for Montreal
         data = Daily(montreal, start_date, end_date)
@@ -177,32 +177,29 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 from fredapi import Fred
-def macroeconomic_fetch_fred(start_date = '2023-10-01', end_date = '2024-11-01') -> pd.DataFrame:
+def macroeconomic_fetch_fred(start_date = '2023-10-01', end_date = None) -> pd.DataFrame:
     """
     Fetches macroeconomic data from the FRED API.
     Returns:
-        pandas.Series: GDP data
         pandas.Series: CPI data
         pandas.Series: Unemployment data
         pandas.Series: Bond yields
     """
     # Load the API key from the environment
     api_key = os.getenv('FRED_API_KEY')
-
     try:
         # Connect to the FRED API
         fred = Fred(api_key=api_key)
 
         # Fetch the macroeconomic data
-        gdp = fred.get_series('NGDPRSAXDCCAQ',observation_start = start_date, observation_end=end_date)
-        cpi = fred.get_series('CPALTT01CAM659N', observation_start = start_date, observation_end=end_date)
-        unemployment = fred.get_series('LRUNTTTTCAM156S', observation_start=start_date, observation_end=end_date)
-        bond_yields = fred.get_series('IRLTLT01CAM156N', observation_start=start_date, observation_end=end_date)
+        cpi = fred.get_series('CORESTICKM159SFRBATL', observation_start = start_date, observation_end = end_date)
+        unemployment = fred.get_series('LRUNTTTTCAM156S', observation_start=start_date, observation_end = end_date)
+        bond_yields = fred.get_series('IRLTLT01CAM156N', observation_start=start_date, observation_end = end_date)
     except Exception as e:
         print(f"Error fetching macroeconomic data: {str(e)}")
         return None, None, None, None
 
-    return gdp.to_frame(name = 'GDP'), cpi.to_frame(name = 'CPI'), unemployment.to_frame(name = 'Unemployment Rate'), bond_yields.to_frame(name = 'Bond Yields')
+    return cpi.to_frame(name = 'CPI'), unemployment.to_frame(name = 'Unemployment Rate'), bond_yields.to_frame(name = 'Bond Yields')
 
 import requests
 from datetime import datetime

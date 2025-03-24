@@ -149,7 +149,7 @@ def xgb_train_log(df, categories, n_splits, xgb_params, random_state=42, date_sp
 
     for category in categories:
         # Prepare data
-        X = df.drop(category, axis=1)
+        X = df.drop(categories, axis=1)
         y = df[category]
 
         X_train = X[X.index <= date_split]
@@ -278,13 +278,14 @@ def ridge_train_log(df, categories, n_splits, ridge_params, random_state=42, dat
 
     for category in categories:
         # Prepare data
-        X = df.drop(category, axis=1)
+        X = df.drop(categories, axis=1)
         y = df[category]
 
         X_train = X[X.index <= date_split]
         y_train = y[y.index <= date_split]
         X_test = X[X.index > date_split]
         y_test = y[y.index > date_split]
+
 
         # Time series CV
         tcsv = TimeSeriesSplit(n_splits=n_splits, test_size=30, gap=0)

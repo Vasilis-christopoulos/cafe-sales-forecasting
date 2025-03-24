@@ -78,7 +78,7 @@ def local_holidays_preprocess(df, start_date='2023-10-01', end_date='2024-10-01'
 # Weather
 #------------------------------------------------------------------------------
 def weather_preprocess(weather):
-    weather_clean = weather.drop(columns=['tsun', 'wpgt'], axis=1)
+    weather_clean = weather.drop(columns=['tsun', 'wpgt', 'snow'], axis=1)
     weather_clean = weather_clean.fillna(0)
     return weather_clean
 
@@ -86,14 +86,16 @@ def weather_preprocess(weather):
 #------------------------------------------------------------------------------
 def daily_resample(data, start_date='2023-10-01', end_date='2024-10-31'):
     """
-    Resamples daily data to fill missing dates and forward fill values.
+    Resamples data to daily frequency and fills missing values.
     Parameters:
         data (pd.DataFrame): Input DataFrame.
+        start_date (str): Start date.
+        end_date (str): End date.
     Returns:
         pd.DataFrame: Resampled DataFrame.
     """
-    data_daily = data.resample('D').ffill()
-    data_daily = data_daily.reindex(pd.date_range(start=start_date, end=end_date, freq='D')).ffill()
+    data_daily = data.resample('D').interpolate(method='time')
+    data_daily = data_daily.reindex(pd.date_range(start=start_date, end=end_date, freq='D')).interpolate()
     return data_daily
 
 def remove_dollar_sign_and_convert(x):

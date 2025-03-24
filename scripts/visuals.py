@@ -46,8 +46,8 @@ def plot_monthly_sales_vs_macro(data: pd.DataFrame):
         monthly_data = data.resample('ME').mean()
         
         # Define categories and macro indicators
-        categories = ['Coffee', 'Without Coffee', 'Food', 'Merch']
-        macro_indicators = ['GDP', 'CPI', 'Unemployment Rate', 'Bond Yields']
+        categories = ['Coffee', 'Without Coffee', 'Food']
+        macro_indicators = ['CPI', 'Unemployment Rate', 'Bond Yields']
         
         # Set seaborn style
         sns.set_style("whitegrid")
@@ -230,9 +230,9 @@ def hist_residuals_comparison(residuals_ridge, residuals_xgb, categories):
     sns.despine()
     plt.show()
 
-def hist_plot_categories(data_final, categories, figsize=(10, 8)):
+def hist_plot_categories(data_final, categories, figsize=(8, 6)):
     # Create a figure and axes for the histograms
-    fig_hist, axes_hist = plt.subplots(2, 3, figsize=figsize)
+    fig_hist, axes_hist = plt.subplots(1, 3, figsize=figsize)
 
     # Plot histogram for each category
     for ax_hist, category in zip(axes_hist.flatten(), categories):
