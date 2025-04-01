@@ -1,22 +1,8 @@
 import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
 from scripts.data_fetching import macroeconomic_fetch_fred, make_request
 from scripts.data_preprocessing import daily_resample
-from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.statespace.sarimax import SARIMAX
-from sklearn.metrics import mean_squared_error
-from scripts.model_training import calculate_mape
-import numpy as np
-from sklearn.model_selection import TimeSeriesSplit
 from scripts.feature_engineering import create_pedestrianization, create_time_features, create_lag_features
-import pickle
 import dill
-import os
-from dotenv import load_dotenv
-load_dotenv()
-from fredapi import Fred
-import warnings
 
 # Macroeconomic data
 # This function would be adjusted with the API for fetching the macroeconomic foreasts
@@ -208,9 +194,9 @@ def load_sales_model_and_forecast(model_path, df, date):
     with open(model_path, 'rb') as f:
         model = dill.load(f)
     predictions = model.predict(df)
-    dates = pd.date_range(datetime.strptime(date, '%Y-%m-%d') + timedelta(days=1), datetime.strptime(date, '%Y-%m-%d') + timedelta(days=10))
-    predictions = pd.DataFrame(predictions, index=dates, columns=['sales'])
-    
+    dates = pd.date_range(date + timedelta(days=1), date + timedelta(days=10))
+    predictions = pd.DataFrame(predictions, index=dates.date, columns=['sales'])
+
     return predictions
 
 def reorder_columns(df):
