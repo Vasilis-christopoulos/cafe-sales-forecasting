@@ -7,11 +7,13 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit, train_test_split
-from sklearn.metrics import make_scorer, mean_squared_error, mean_absolute_error, r2_score
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from typing import List, Dict, Tuple
 from sklearn.linear_model import Ridge
 from sklearn.compose import TransformedTargetRegressor
 from sklearn.preprocessing import FunctionTransformer
+
+import warnings
 
 def analyze_category_feature_importance(
     data: pd.DataFrame, 
@@ -131,15 +133,6 @@ def xgb_train_log(df, categories, n_splits, xgb_params, random_state=42, date_sp
     Similar to ridge_train, but uses a TransformedTargetRegressor with log1p/expm1
     so that the target is log-transformed during training.
     """
-    import numpy as np
-    import pandas as pd
-    from sklearn.linear_model import Ridge
-    from sklearn.preprocessing import StandardScaler, FunctionTransformer
-    from sklearn.compose import TransformedTargetRegressor
-    from sklearn.pipeline import Pipeline
-    from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
-    from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-    
     results = {}
     residuals = {}
     best_models = {}
@@ -157,7 +150,7 @@ def xgb_train_log(df, categories, n_splits, xgb_params, random_state=42, date_sp
         y_test = y[y.index > date_split]
 
         # Time series CV
-        tcsv = TimeSeriesSplit(n_splits=n_splits, test_size=30, gap=0)
+        tcsv = TimeSeriesSplit(n_splits=n_splits, test_size=14, gap=0)
 
         scaler = StandardScaler()
         pipeline = Pipeline([
@@ -257,15 +250,6 @@ def ridge_train_log(df, categories, n_splits, ridge_params, random_state=42, dat
     Similar to ridge_train, but uses a TransformedTargetRegressor with log1p/expm1
     so that the target is log-transformed during training.
     """
-    import numpy as np
-    import pandas as pd
-    from sklearn.linear_model import Ridge
-    from sklearn.preprocessing import StandardScaler, FunctionTransformer
-    from sklearn.compose import TransformedTargetRegressor
-    from sklearn.pipeline import Pipeline
-    from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
-    from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-    import warnings
 
     warnings.filterwarnings('ignore')
     
@@ -287,7 +271,7 @@ def ridge_train_log(df, categories, n_splits, ridge_params, random_state=42, dat
 
 
         # Time series CV
-        tcsv = TimeSeriesSplit(n_splits=n_splits, test_size=30, gap=0)
+        tcsv = TimeSeriesSplit(n_splits=n_splits, test_size=14, gap=0)
 
         scaler = StandardScaler()
         pipeline = Pipeline([

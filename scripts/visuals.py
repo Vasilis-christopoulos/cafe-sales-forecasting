@@ -1,6 +1,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import seaborn as sns
+import scipy.stats as stats
 
 def plot_correlation_heatmap(df, figsize=(30, 12), cmap='viridis'):
     """
@@ -245,9 +247,6 @@ def hist_plot_categories(data_final, categories, figsize=(8, 6)):
     plt.tight_layout()
     plt.show()
 
-import seaborn as sns
-import scipy.stats as stats
-
 def plot_qq_comparison(residuals_ridge, residuals_xgb, categories):
     """Plot QQ plots comparison for train and test residuals"""
     
@@ -308,3 +307,108 @@ def plot_qq_comparison(residuals_ridge, residuals_xgb, categories):
     plt.tight_layout()
     sns.despine()
     plt.show()
+
+
+def line_chart(df, category):
+    """"
+    Plot a line chart with markers and enhanced visual appeal."
+    """
+    
+    sns.set_theme(style='darkgrid', palette='magma')
+    sns.lineplot(data=df, x=df.index, y='sales', marker='o')
+
+    # Mean sales line
+    mean_sales = df['sales'].mean()
+    plt.axhline(mean_sales, color='red', linestyle='--', label='Mean Sales')
+    ax = plt.gca()
+    ax.text(ax.get_xlim()[0] + 0.1, mean_sales, f'{mean_sales:.2f}', color='red',
+                    fontsize=8, va='bottom', ha='left')
+    
+    # Min and Max markers
+    min_sales = df['sales'].min()
+    max_sales = df['sales'].max()
+    min_date = df['sales'].idxmin()
+    max_date = df['sales'].idxmax()
+    ax.scatter(min_date, min_sales, color='red', s=30, zorder=5)
+    ax.scatter(max_date, max_sales, color='red', s=30, zorder=5)
+
+    # Annotate each point with its value
+    texts = []
+    for x, y in zip(df.index, df['sales']):
+        texts.append(ax.text(x, y, f'{y:.2f}'))
+    # Remove the initial texts and re-annotate each point with an arrow using ax.annotate
+    for text in texts:
+        x, y = text.get_position()
+        text.remove()  # Remove the original text object
+        ax.annotate(f'{y:.2f}',
+                    xy=(x, y),
+                    xytext=(0, 2),  # Offset in points above the point
+                    textcoords='offset points',
+                    ha='right',
+                    va='bottom',
+                    fontsize = 8)
+    plt.title(f'10-Day {category} Sales Forecast')
+    plt.xlabel('Date')
+    plt.ylabel('Sales')
+    plt.xticks(rotation=45, fontsize = 8)
+    plt.grid(True)
+    plt.tight_layout()
+
+    print(f"Mean {category} Sales: {mean_sales:.2f}")
+    print(f"Min {category} Sales: {min_sales:.2f} on {min_date}")
+    print(f"Max {category} Sales: {max_sales:.2f} on {max_date}")
+    print('\n')
+
+def plot_sales(pred_1, pred_2, pred_3, categories):
+    """"
+    Plot sales predictions for three categories in a single figure with subplots.
+    """
+    # Create a figure with subplots arranged side by side
+    fig, axes = plt.subplots(1, len(categories), figsize=(5 * len(categories), 5))
+    predictions = [pred_1, pred_2, pred_3]
+
+    for ax, df, category in zip(axes, predictions, categories):
+        # Set current axis so that line_chart plots on the correct subplot.
+        plt.sca(ax)
+        line_chart(df, category)
+        ax.set_title(f'10-Day {category} Sales Forecast')
+
+    # Restore plt.show to its original functionality, adjust layout, and finally display the figure.
+    plt.show
+    plt.tight_layout()
+    plt.show()
+
+def plot_total_sales(total_df, coffee_contribution, without_coffee_contribution, food_contribution):
+    """
+    Plot line chart with markers for total sales and histogram for contribution of each category side by side.
+    """
+    # Create a figure with subplots arranged side by side
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5))
+
+    # Plot total sales line chart
+    plt.sca(axes[0])
+    line_chart(total_df, 'Total')
+    axes[0].set_title('10-Day Total Sales Forecast')
+
+    # Plot histogram for contribution of each category
+    plt.sca(axes[1])
+    categories = ['Coffee', 'Without Coffee', 'Food']
+    # Create a bar plot for contributions
+    contributions = [coffee_contribution, without_coffee_contribution, food_contribution]
+    ax = sns.barplot(x=categories, y=contributions, palette='magma', hue =categories, width = 0.6)
+    # Add value labels on top of each bar
+    for bar in ax.patches:
+        height = bar.get_height()
+        ax.annotate(f'{height:.2f}', 
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3),  # Offset text by 5 points vertically
+                    textcoords='offset points',
+                    ha='center', va='bottom')
+    plt.title('Contribution of each category to Total Sales')
+    plt.xlabel('Category')
+    plt.ylabel('Contribution')
+    
+    # Adjust layout and display the figure
+    plt.tight_layout()
+    plt.show()
+

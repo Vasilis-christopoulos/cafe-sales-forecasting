@@ -32,10 +32,11 @@ def macro_forecast(date) -> pd.DataFrame:
     macroeconomic = pd.concat([cpi_daily, unemployment_daily, bond_yields_daily], axis=1)
 
     # Create lag features
-    macroeconomic_lags = create_lag_features(macroeconomic, cols=['CPI', 'Unemployment Rate', 'Bond Yields'], lags=[7, 10, 14, 30])
+    macroeconomic_lags = create_lag_features(macroeconomic, cols=['CPI', 'Unemployment Rate', 'Bond Yields'], lags=[7, 10])
 
     # Keep only the required columns
-    macroeconomic_final = macroeconomic_lags[['CPI', 'Unemployment Rate', 'CPI_lag_10', 'Unemployment Rate_lag_7', 'Unemployment Rate_lag_10', 'Unemployment Rate_lag_14', 'Unemployment Rate_lag_30', 'Bond Yields_lag_7', 'Bond Yields_lag_10', 'Bond Yields_lag_14', 'Bond Yields_lag_30']]
+    macroeconomic_final = macroeconomic_lags[['CPI', 'CPI_lag_7','Bond Yields_lag_10']]
+    macroeconomic_final = macroeconomic_final.loc[macroeconomic_final.index > date]
     
     return macroeconomic_final.dropna()
 
@@ -43,6 +44,7 @@ def macro_forecast(date) -> pd.DataFrame:
 
 import meteostat
 from datetime import datetime, timedelta
+import os
 
 def weather_forecast(date):
     """
@@ -81,14 +83,34 @@ def holidays(date):
     start_year = start_date.year
     end_year = end_date.year
     try:
+        start_cached_file = os.path.join('data',    f'holidays_{start_year}.csv')
+        end_cached_file = os.path.join('data', f'holidays_{end_year}.csv')
         if start_year != end_year:
-            start_year_holidays = make_request(start_year)
-            end_year_holidays = make_request(end_year)
-            df = pd.concat([start_year_holidays, end_year_holidays])
+            # Check if the holiday data for the start and end year are already cached
+            if os.path.exists(start_cached_file) and os.path.exists(end_cached_file):
+                # Load the cached data
+                start_year_holidays = pd.read_csv(start_cached_file, index_col=0)
+                end_year_holidays = pd.read_csv(end_cached_file, index_col=0)
+                print(f"Using cached holiday data from {start_cached_file} and {end_cached_file}")
+            else:
+                # Fetch the holiday data for both years and save them to CSV files
+                start_year_holidays = make_request(start_year)
+                start_year_holidays.to_csv(start_cached_file)
+                end_year_holidays = make_request(end_year)
+                end_year_holidays.to_csv(end_cached_file)
+            df = pd.concat([start_year_holidays, end_year_holidays], axis=0)
         else:
-            df = make_request(start_year)
+            if os.path.exists(start_cached_file):
+                # Load the cached data
+                df = pd.read_csv(start_cached_file)
+                print(f"Using cached holiday data from {start_cached_file}")
+            else:
+                # Fetch the holiday data and save it to a CSV file
+                df = make_request(start_year)
+                df.to_csv(start_cached_file)
     except Exception as e:
         print(f"An error occurred while fetching holiday data: {e}")
+    
    
     df['Date'] = df['Date'].apply(lambda x: datetime.fromisoformat(x).date())
     df['Date'] = pd.to_datetime(df['Date'])
@@ -140,6 +162,14 @@ def major_holiday_feature(df, date):
     return df.drop('Name', axis=1)
 
 def holiday_feature(date):
+    """
+    Creates a holiday feature for the given date.
+    Args:
+        date (str): The current date
+    Returns:
+        pandas.DataFrame: A DataFrame with holiday features
+    """
+
     holiday_data = holidays(date)
     holiday_feature = major_holiday_feature(holiday_data, date)
     holiday_feature = holiday_feature.groupby(holiday_feature.index).max()
@@ -156,6 +186,16 @@ def holiday_feature(date):
 # Pedestrianization
 
 def pedestrianization(date, ped_start, ped_end):
+    """
+    Creates a pedestrianization feature for the given date.
+    Args:
+        date (str): The current date
+        ped_start (str): Start date for pedestrianization in 'YYYY-MM-DD' format.
+        ped_end (str): End date for pedestrianization in 'YYYY-MM-DD' format.
+    Returns:
+        pandas.DataFrame: A DataFrame with pedestrianization feature
+    """
+
     start_date = datetime.strptime(date, '%Y-%m-%d') + timedelta(days=1)
     end_date = datetime.strptime(date, '%Y-%m-%d') + timedelta(days=10)
     pedestrian_feature = create_pedestrianization('2025-06-01', '2025-09-30', start_date, end_date)
@@ -165,15 +205,24 @@ def pedestrianization(date, ped_start, ped_end):
 # Time features
 
 def time_features(date):
+    """
+    Creates time features for the given date.
+    Args:
+        date (str): The current date
+    Returns:
+        pandas.DataFrame: A DataFrame with time features
+    """
+
     start_date = datetime.strptime(date, '%Y-%m-%d') + timedelta(days=1)
     end_date = datetime.strptime(date, '%Y-%m-%d') + timedelta(days=10)
+
     time_features = create_time_features(start_date, end_date)
     time_features = time_features.drop(columns = ['year', 'month', 'day_of_month'])
 
     time_features = pd.get_dummies(time_features, columns=['day_of_week']).astype(int)
     time_features['quarter_1'] = time_features['quarter'].apply(lambda x: 1 if x == 1 else 0)
     time_features['quarter_3'] = time_features['quarter'].apply(lambda x: 1 if x == 3 else 0)
-    time_features = time_features[['is_weekend', 'day_of_week_1', 'day_of_week_2', 'day_of_week_4', 'quarter_1',  'quarter_3']]
+    time_features = time_features[['is_weekend', 'day_of_week_4', 'quarter_3']]
 
     return time_features
 
@@ -194,6 +243,12 @@ def load_sales_model_and_forecast(model_path, df, date):
     with open(model_path, 'rb') as f:
         model = dill.load(f)
     predictions = model.predict(df)
+
+    # Check if the date is in the correct format
+    if isinstance(date, str):
+        date = datetime.strptime(date, '%Y-%m-%d')
+
+    # Create a date range for the next 10 days
     dates = pd.date_range(date + timedelta(days=1), date + timedelta(days=10))
     predictions = pd.DataFrame(predictions, index=dates.date, columns=['sales'])
 
@@ -213,12 +268,8 @@ def reorder_columns(df):
         ValueError: If any required column is missing in the DataFrame.
     """
     desired_order = ['closed', 'holiday_type_2',
-       'is_pedestrian', 'is_weekend', 'CPI', 'Unemployment Rate', 'tavg',
-       'wspd', 'quarter_1', 'quarter_3', 'day_of_week_1', 'day_of_week_2',
-       'day_of_week_4', 'CPI_lag_10', 'Unemployment Rate_lag_7',
-       'Unemployment Rate_lag_10', 'Unemployment Rate_lag_14',
-       'Unemployment Rate_lag_30', 'Bond Yields_lag_7', 'Bond Yields_lag_10',
-       'Bond Yields_lag_14', 'Bond Yields_lag_30', 'before_holiday',
+       'is_pedestrian', 'is_weekend', 'CPI', 'tavg', 'wspd', 'quarter_3',
+       'day_of_week_4', 'CPI_lag_7', 'Bond Yields_lag_10', 'before_holiday',
        'tavg_weekend'
     ]
     
@@ -233,28 +284,40 @@ def reorder_columns(df):
 ## 
 
 def forecast_pipe(date, ped_start, ped_end, closed_dates = None):
+    """
+    Main function to fetch data and create features for forecasting.
+
+    Args:
+    date (str): The current date in 'YYYY-MM-DD' format.
+    ped_start (str): Start date for pedestrianization in 'YYYY-MM-DD' format.
+    ped_end (str): End date for pedestrianization in 'YYYY-MM-DD' format.
+    closed_dates (list, optional): List of dates when the store is closed.
+
+    Returns:
+    pandas.DataFrame: A DataFrame with the features for forecasting.
+    """
    
-   # Macroeconomic indicators fetch
-   macroeconomic = macro_forecast(date)
+    # Macroeconomic indicators fetch
+    macroeconomic = macro_forecast(date)
 
-   # Weather forecast fetch
-   weather = weather_forecast(date)
+    # Weather forecast fetch
+    weather = weather_forecast(date)
 
-   # Holiday feature
-   holidays = holiday_feature(date)
+    # Holiday feature
+    holidays = holiday_feature(date)
 
-   # Pedestrianization feature
-   pedestrian = pedestrianization(date, ped_start, ped_end)
+    # Pedestrianization feature
+    pedestrian = pedestrianization(date, ped_start, ped_end)
 
-   # Time features
-   time_fs = time_features(date)
+    # Time features
+    time_fs = time_features(date)
 
-   # Merge the features & extra feature engineering
-   data = pd.concat([macroeconomic, weather, holidays, pedestrian, time_fs], axis=1)
-   data['tavg_weekend'] = data['tavg'] * data['is_weekend']
-   data['closed'] = 0
-   if closed_dates is not None:
-        data.loc[closed_dates, 'closed'] = 1
-   data = reorder_columns(data)
+    # Merge the features & extra feature engineering
+    data = pd.concat([macroeconomic, weather, holidays, pedestrian, time_fs], axis=1)
+    data['tavg_weekend'] = data['tavg'] * data['is_weekend']
+    data['closed'] = 0
+    if closed_dates is not None:
+            data.loc[closed_dates, 'closed'] = 1
+    data = reorder_columns(data)
 
-   return data
+    return data
