@@ -177,6 +177,8 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 from fredapi import Fred
+import streamlit as st
+
 def macroeconomic_fetch_fred(start_date = '2023-10-01', end_date = None) -> pd.DataFrame:
     """
     Fetches macroeconomic data from the FRED API.
@@ -185,8 +187,17 @@ def macroeconomic_fetch_fred(start_date = '2023-10-01', end_date = None) -> pd.D
         pandas.Series: Unemployment data
         pandas.Series: Bond yields
     """
-    # Load the API key from the environment
-    api_key = os.getenv('FRED_API_KEY')
+    # Attempt to get the API key from Streamlit secrets.
+    # In your deployed environment, this will be provided through st.secrets.
+    try:
+        api_key = st.secrets["fred"]["api_key"]
+    except Exception as e:
+        # Fallback: Load from the .env file for local development.
+        from dotenv import load_dotenv
+        import os
+        load_dotenv()
+        api_key = os.getenv('FRED_API_KEY')
+
     try:
         # Connect to the FRED API
         fred = Fred(api_key=api_key)
@@ -211,11 +222,17 @@ def make_request(year) -> pd.DataFrame:
     Returns:
         pandas.DataFrame: DataFrame with holiday names and dates
     """
+     # Attempt to get the API key from Streamlit secrets.
+    try:
+        api_key = st.secrets["calendarific"]["api_key"]
+    except Exception as e:
+        # Fallback to reading the key from environment variables (loaded via a .env file).
+        api_key = os.getenv('CALENDARIFIC_API_KEY')
     
     url = "https://calendarific.com/api/v2/holidays"
 
     params = {
-        'api_key': os.getenv('CALENDARIFIC_API_KEY'),
+        'api_key': api_key,
         'country': 'ca',
         'year': year,
         'location': 'ca-qc'
