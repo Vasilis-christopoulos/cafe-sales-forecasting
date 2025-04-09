@@ -6,7 +6,7 @@
 
 ## Live Demo
 
-Interact with the full dashboard here: [Streamlit Cloud Link]()
+Interact with the full dashboard here: [Streamlit Cloud Link](https://cafe-sales-forecasting-rwxbrpaed944zibn4zdtfc.streamlit.app/)
 
 Interact with:
 - 10-day sales forecasts
