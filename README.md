@@ -45,6 +45,40 @@ It will:
 
 No training needed.
 
+Here is a detailed step by step on how to do this:
+**Step 0: Make sure that you have python 3.13 installed on your computer**
+
+```bash
+# Step 1: Clone the repository to your local machine's desktop
+cd ~/Desktop
+git clone https://github.com/Vasilis-christopoulos/cafe-sales-forecasting.git
+
+# Step 2: Change directory into the cloned repository
+cd cafe-sales-forecasting
+
+# Step 3: create the .env file to load your api keys
+cp .env.example .env
+```
+
+Step 4: Open the newly created .env file and input your [FRED API key](https://fred.stlouisfed.org/docs/api/api_key.html) and your [Calendarific API](https://calendarific.com/api-documentation) key.
+
+**Back in the terminal:**
+```bash
+# Step 5: Create a virtual environment using python 3.13 and activate it 
+python3.13 -m venv testenv
+source testenv/bin/activate # Windows: source testenv\Scripts\activate
+
+# Step 6: Install all required dependencies
+pip install -r requirements.txt
+
+# Step 7: Open jupyter notebook
+jupyter notebook
+```
+
+Step 8: Navigate back to the jupyter notebook localhost tab and open the forecast.ipynb notebook.
+
+Step 9: You are all set you can run the cells.
+
 ---
 
 ## Project Summary
