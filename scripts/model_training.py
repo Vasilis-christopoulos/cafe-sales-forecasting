@@ -250,8 +250,6 @@ def ridge_train_log(df, categories, n_splits, ridge_params, random_state=42, dat
     Similar to ridge_train, but uses a TransformedTargetRegressor with log1p/expm1
     so that the target is log-transformed during training.
     """
-
-    warnings.filterwarnings('ignore')
     
     results = {}
     residuals = {}
@@ -289,11 +287,15 @@ def ridge_train_log(df, categories, n_splits, ridge_params, random_state=42, dat
             scoring='neg_root_mean_squared_error',
             cv=tcsv,
             refit=True,
-            n_jobs=-1,
+            n_jobs=1,
             verbose=False
         )
         
-        grid_search.fit(X_train, y_train)
+       # Train the model with warnings suppressed
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
+            grid_search.fit(X_train, y_train)
+
 
         y_pred_train = grid_search.predict(X_train)
         y_pred_test = grid_search.predict(X_test)
