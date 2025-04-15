@@ -59,8 +59,22 @@ cd repo_name
 # Step 3: create the .env file to load your api keys
 cp .env.example .env
 ```
+**Step 4:**<br>
+On macOS:
 
-Step 4: Open the newly created .env file and input your [FRED API key](https://fred.stlouisfed.org/docs/api/api_key.html) and your [Calendarific API](https://calendarific.com/api-documentation) key.
+Open Finder
+Press Cmd + Shift + . to reveal hidden files
+
+On Windows:
+
+Open File Explorer
+Press Ctrl + H or go to View > Show > Hidden items
+
+Open the newly created .env file and input your [FRED API key](https://fred.stlouisfed.org/docs/api/api_key.html) and your [Calendarific API](https://calendarific.com/api-documentation) key.
+```bash
+CALENDARIFIC_API_KEY=your_real_key_here
+WEATHER_API_KEY=your_real_key_here
+```
 
 **Back in the terminal:**
 ```bash
@@ -75,9 +89,9 @@ pip install -r requirements.txt
 jupyter notebook
 ```
 
-Step 8: Navigate back to the jupyter notebook localhost tab and open the forecast.ipynb notebook.
+**Step 8: Navigate to the jupyter notebook localhost tab and open the forecast.ipynb notebook.**
 
-Step 9: You are all set you can run the cells.
+**Step 9: You are all set you can run the cells.**
 
 ---
 
