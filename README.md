@@ -51,10 +51,10 @@ Here is a detailed step by step on how to do this:
 ```bash
 # Step 1: Clone the repository to your local machine's desktop
 cd ~/Desktop
-git clone https://github.com/Vasilis-christopoulos/cafe-sales-forecasting.git
+git clone repo_link
 
 # Step 2: Change directory into the cloned repository
-cd cafe-sales-forecasting
+cd repo_name
 
 # Step 3: create the .env file to load your api keys
 cp .env.example .env
